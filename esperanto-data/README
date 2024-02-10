@@ -1,0 +1,62 @@
+## Changes
+
+A few changes were made:
+
+- Corpus: 
+    - removed all test cases with internal periods (moses segments them wrong and it was a pain to fix, there were only like 2k)
+    - made a new corpus with diacritics already removed
+    - the baseline corpus is now `Tatoeba.moses.cleaned.nodiacritics.eo`
+
+- Morphological Segmenter:
+    - changed it to use 点 and 分 as the delimiters, since commas were messing things up
+
+- Other:
+    - added a bunch of pronouns and their variants to the special words
+    - using these markers `AFFIX, ENDING, SPECIAL, SPACE = "接", "終", "特", "空"`
+    - `SPECIAL` is like gxis
+    - `SPACE` is for anything else `telephone`, `dek` (all numbers), basically anything that we can't do esperanto with and just need to tokenize it with a space at the end
+    - Anything that is a ROOT (part of a larger esperanto word with affixes and endings) should not have a SPACE token at the end
+
+## How to use
+- rebuild the segmenter (go to `EsperantoWordSegmenter` and run `src/build.sh`
+- make sure you have tokenizers installed (just `pip3 install tokenizers`)
+- run `python3 -i tokenize_corpus.py`
+    - this will extract all the words and their segmentations and canonical forms (e.g. hundo -> hund o終)
+    - creates a tokenizer
+    - tokenizes the text (to `Tatoeba.moses.cleaned.nodiacritics.tokenized.eo`)
+    - detokenize the text (to `Tatoeba.moses.cleaned.nodiacritics.tokenized.detokenized.eo`)
+- run `diff <(cat Tatoeba.moses.cleaned.nodiacritics.tokenized.detokenized.eo) <(cat Tatoeba.moses.cleaned.nodiacritics.eo)`
+    - add ` | diffstats` to the end to see the number of differing lines
+
+- You can view the segmentation and tags of a word via: `segs["hundo"]` -> `('hund分o', ('ROOT', 'ENDING'))`
+- You can view the canonical form of the word via: `canonical["hundo"]` -> `'hund o終'`
+    - This is what actually gets passed to the neural model
+
+
+
+## Your goal
+Get that number to zero. The issue seems to be somewhere in `convert_tags` or `wordsegtonew`. Here are some examples
+
+```python
+>>> segs["erdoano"]
+('erdoan分o', ('ENDING',))
+>>> canonical["erdoano"]
+'erdoan終'
+>>> segs["propano"]
+('propan分o', ('ENDING',))
+>>> canonical["propano"]
+'propan終'
+```
+
+which have actual segmentations
+
+```
+erdoano点er分do分an分o点Noun分Conjunction分Verb分O
+propano点pro分pan分o点Preposition分Noun分O
+```
+
+Line 53 of tokenize_corpus is what converts the output of the morphological segmenter to what segs holds:
+```python
+segs[word] = segmentation_utils.wordsegtonew(seg, tuple(segmentation_utils.convert_tags(tags.split(TAG_SEP))))
+```
+so the issue is definitely in `wordsegtonew` or `convert_tags`

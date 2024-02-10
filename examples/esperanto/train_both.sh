@@ -1,0 +1,2 @@
+sh train_semantic_eo_en.sh
+sh train_generic_eo_en.sh
